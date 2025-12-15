@@ -4,7 +4,7 @@ USE medical_knowledge_base;
 
 -- 患者基本信息表
 CREATE TABLE IF NOT EXISTS patient_info (
-    patient_id INT PRIMARY KEY AUTO_INCREMENT,
+    patient_id VARCHAR(200) PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     gender ENUM('男', '女') NOT NULL,
     age INT NOT NULL CHECK (age >= 0),
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS patient_info (
 -- 患者病历表
 CREATE TABLE IF NOT EXISTS medical_records (
     record_id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
+    patient_id VARCHAR(200) NOT NULL,
     visit_date DATE NOT NULL,
     chief_complaint TEXT,
     present_illness TEXT,
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS medical_records (
 -- 检查检验结果表
 CREATE TABLE IF NOT EXISTS lab_results (
     result_id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
+    patient_id VARCHAR(200) NOT NULL,
     record_id INT,
     test_date DATE NOT NULL,
     test_type VARCHAR(100) NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS lab_results (
 -- 用药记录表
 CREATE TABLE IF NOT EXISTS medication_records (
     med_id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
+    patient_id VARCHAR(200) NOT NULL,
     record_id INT,
     medication_date DATE NOT NULL,
     drug_name VARCHAR(100) NOT NULL,
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS medication_records (
 -- 诊断记录表
 CREATE TABLE IF NOT EXISTS diagnosis_records (
     diag_id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
+    patient_id VARCHAR(200) NOT NULL,
     record_id INT NOT NULL,
     diagnosis_date DATE NOT NULL,
     diagnosis_code VARCHAR(20),
@@ -87,7 +87,7 @@ CREATE TABLE IF NOT EXISTS diagnosis_records (
 -- 高血压风险评估表
 CREATE TABLE IF NOT EXISTS hypertension_risk_assessment (
     assessment_id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
+    patient_id VARCHAR(200) NOT NULL,
     assessment_date DATE NOT NULL,
     sbp DECIMAL(5,1) NOT NULL COMMENT '收缩压',
     dbp DECIMAL(5,1) NOT NULL COMMENT '舒张压',
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS hypertension_risk_assessment (
 -- 糖尿病控制评估表
 CREATE TABLE IF NOT EXISTS diabetes_control_assessment (
     assessment_id INT PRIMARY KEY AUTO_INCREMENT,
-    patient_id INT NOT NULL,
+    patient_id VARCHAR(200) NOT NULL,
     assessment_date DATE NOT NULL,
     fasting_glucose DECIMAL(5,1),
     postprandial_glucose DECIMAL(5,1),
@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS system_logs (
     operation_type ENUM('查询', '插入', '更新', '删除', '分析') NOT NULL,
     operation_user VARCHAR(50),
     operation_details TEXT,
-    patient_id INT NULL,
+    patient_id VARCHAR(200) NULL,
     execution_time_ms INT,
     status ENUM('成功', '失败', '警告') DEFAULT '成功'
 );

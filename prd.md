@@ -19,7 +19,8 @@
 
 1. data 目录:存放 rag 需要的文档
 
-2. db 目录存放 mysql 的建表语句 ddl.sql，数据内容已经导入到库里
+2. db 目录存放 mysql 的建表语句 ddl.sql，数据内容已经导入到库里, 数据库信息：rm-bp1y35g510t57uexqlo.mysql.rds.aliyuncs.com:3306
+账号：logcloud 密码：Logcloud4321
 
 【建议】: mysql 采用 mcp 协议
 
