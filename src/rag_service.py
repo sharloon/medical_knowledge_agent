@@ -139,10 +139,21 @@ class RAGService:
         Returns:
             {"answer": str, "sources": list, "success": bool}
         """
-        # 检索相关内容
+        # 1. 首先检查是否超出知识库范围
+        if self._is_out_of_scope(query):
+            logger.info(f"[RAG问答] 检测到超出范围的问题: {query}")
+            return {
+                "answer": self._get_no_knowledge_response(query),
+                "sources": [],
+                "success": True,
+                "has_knowledge": False,
+                "is_out_of_scope": True
+            }
+        
+        # 2. 检索相关内容
         search_results = self.search(query)
         
-        # 检查是否有相关知识
+        # 3. 检查是否有相关知识（包括相关性得分判断）
         if not search_results["hits"]:
             logger.warning(f"[RAG问答] 未找到相关知识: {query}")
             return {
@@ -152,11 +163,42 @@ class RAGService:
                 "has_knowledge": False
             }
         
-        # 构建上下文
+        # 4. 检查检索结果的相关性得分
+        # 如果最高得分低于阈值，判定为无相关知识
+        from src.config import RAG_CONFIG
+        max_score = max([hit.get("score", 0) for hit in search_results["hits"]])
+        similarity_threshold = RAG_CONFIG.get("similarity_threshold", 0.3)
+        
+        if max_score < similarity_threshold:
+            logger.warning(f"[RAG问答] 检索结果相关性过低 (最高得分: {max_score:.3f} < {similarity_threshold}): {query}")
+            return {
+                "answer": self._get_no_knowledge_response(query),
+                "sources": [],
+                "success": True,
+                "has_knowledge": False,
+                "max_score": max_score
+            }
+        
+        # 5. 过滤低相关性结果
+        filtered_hits = [
+            hit for hit in search_results["hits"] 
+            if hit.get("score", 0) >= similarity_threshold
+        ]
+        
+        if not filtered_hits:
+            logger.warning(f"[RAG问答] 过滤后无有效结果: {query}")
+            return {
+                "answer": self._get_no_knowledge_response(query),
+                "sources": [],
+                "success": True,
+                "has_knowledge": False
+            }
+        
+        # 6. 构建上下文（只使用过滤后的高相关性结果）
         context_parts = []
         sources = []
         
-        for hit in search_results["hits"][:5]:
+        for hit in filtered_hits[:5]:
             context_parts.append(f"【来源: {hit['source'].get('type', 'unknown')}】\n{hit['content']}")
             sources.append({
                 "type": hit["source"].get("type"),
@@ -239,10 +281,49 @@ class RAGService:
         
         return "\n".join(parts)
     
+    def _is_out_of_scope(self, query: str) -> bool:
+        """
+        判断查询是否超出知识库范围
+        
+        Args:
+            query: 用户查询
+            
+        Returns:
+            是否超出范围
+        """
+        # 系统支持的关键词
+        supported_keywords = [
+            "高血压", "糖尿病", "血压", "血糖", "HbA1c", "糖化血红蛋白",
+            "降压", "降糖", "ACEI", "ARB", "CCB", "利尿剂",
+            "心肌梗死", "冠心病", "脑卒中", "肾病", "视网膜病变",
+            "胰岛素", "二甲双胍", "氨氯地平", "缬沙坦"
+        ]
+        
+        # 超出范围的关键词
+        out_of_scope_keywords = [
+            "骨折", "骨科", "眼科", "皮肤", "癌症", "肿瘤", "手术", "外科",
+            "妇科", "产科", "儿科", "耳鼻喉", "口腔", "精神", "心理",
+            "肝病", "肺病", "胃病", "肠病", "甲状腺", "风湿", "免疫"
+        ]
+        
+        query_lower = query.lower()
+        
+        # 如果包含超出范围的关键词，且不包含支持的关键词，判定为超出范围
+        has_out_of_scope = any(keyword in query_lower for keyword in out_of_scope_keywords)
+        has_supported = any(keyword in query_lower for keyword in supported_keywords)
+        
+        if has_out_of_scope and not has_supported:
+            return True
+        
+        return False
+    
     def _get_no_knowledge_response(self, query: str) -> str:
         """生成无知识库匹配时的专业回复"""
         # 检查是否是超出范围的问题
-        out_of_scope_keywords = ["骨折", "骨科", "眼科", "皮肤", "癌症", "肿瘤", "手术", "外科"]
+        out_of_scope_keywords = [
+            "骨折", "骨科", "眼科", "皮肤", "癌症", "肿瘤", "手术", "外科",
+            "妇科", "产科", "儿科", "耳鼻喉", "口腔", "精神", "心理"
+        ]
         
         for keyword in out_of_scope_keywords:
             if keyword in query:

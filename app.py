@@ -367,8 +367,8 @@ if __name__ == '__main__':
         logger.warning("警告: DASHSCOPE_API_KEY 环境变量未设置")
     
     # 启动定时任务
-    from src.scheduler import start_scheduler
-    start_scheduler()
+    # from src.scheduler import start_scheduler
+    # start_scheduler()
     
     # 启动服务
     logger.info("医疗知识助手智能体启动中...")

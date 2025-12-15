@@ -77,6 +77,20 @@ class MedicalAgent:
         """简单的意图分类"""
         message_lower = message.lower()
         
+        # 首先检查是否超出范围（优先判断）
+        out_of_scope_keywords = [
+            "骨折", "骨科", "眼科", "皮肤", "癌症", "肿瘤", "手术", "外科",
+            "妇科", "产科", "儿科", "耳鼻喉", "口腔", "精神", "心理"
+        ]
+        # 如果包含超出范围关键词，且不包含支持的关键词，直接返回 general 让 RAG 处理
+        has_out_of_scope = any(kw in message_lower for kw in out_of_scope_keywords)
+        supported_keywords = ["高血压", "糖尿病", "血压", "血糖"]
+        has_supported = any(kw in message_lower for kw in supported_keywords)
+        
+        if has_out_of_scope and not has_supported:
+            # 超出范围的问题，返回 general 让 RAG 的 _is_out_of_scope 处理
+            return "general"
+        
         # 紧急情况
         emergency_keywords = ["急症", "急诊", "紧急", "180", "190", "200", "昏迷", "休克"]
         if any(kw in message for kw in emergency_keywords):
@@ -447,7 +461,18 @@ class MedicalAgent:
     
     def _handle_general_query(self, message: str, patient_context: Dict = None) -> Dict:
         """处理一般查询"""
-        return self.rag.rag_answer(message, patient_context, self.conversation_history[-4:])
+        result = self.rag.rag_answer(message, patient_context, self.conversation_history[-4:])
+        
+        # 如果是超出范围或无知识库，直接返回，不调用 LLM
+        if not result.get("has_knowledge") or result.get("is_out_of_scope"):
+            return result
+        
+        # 如果有知识库，更新对话历史
+        if result.get("success") and result.get("has_knowledge"):
+            self.conversation_history.append({"role": "user", "content": message})
+            self.conversation_history.append({"role": "assistant", "content": result.get("answer", "")})
+        
+        return result
     
     def _warning_to_dict(self, warning: SafetyWarning) -> Dict:
         """将 SafetyWarning 转换为字典"""
