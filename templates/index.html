@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>医疗知识助手智能体</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <span class="logo-icon">🏥</span>
+                <h1>医疗知识助手</h1>
+            </div>
+            
+            <nav class="nav-menu">
+                <div class="nav-section">
+                    <h3>基础数据检索</h3>
+                    <button class="nav-btn active" data-panel="chat">
+                        <span class="icon">💬</span>智能对话
+                    </button>
+                    <button class="nav-btn" data-panel="pdf-structure">
+                        <span class="icon">📄</span>PDF目录结构
+                    </button>
+                    <button class="nav-btn" data-panel="term-mapping">
+                        <span class="icon">📖</span>术语映射表
+                    </button>
+                    <button class="nav-btn" data-panel="insulin-analysis">
+                        <span class="icon">📊</span>胰岛素使用率
+                    </button>
+                    <button class="nav-btn" data-panel="guidelines">
+                        <span class="icon">📋</span>指南推荐查询
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <h3>临床数据查询与分析</h3>
+                    <button class="nav-btn" data-panel="patient-query">
+                        <span class="icon">👤</span>患者画像构建
+                    </button>
+                    <button class="nav-btn" data-panel="risk-assessment">
+                        <span class="icon">⚠️</span>风险分层评估
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <h3>个性化诊疗决策</h3>
+                    <button class="nav-btn" data-panel="diagnosis">
+                        <span class="icon">🔍</span>诊断推理
+                    </button>
+                    <button class="nav-btn" data-panel="treatment">
+                        <span class="icon">💊</span>治疗方案生成
+                    </button>
+                </div>
+                
+                <div class="nav-section">
+                    <h3>系统管理</h3>
+                    <button class="nav-btn" data-panel="index-management">
+                        <span class="icon">🔄</span>索引管理
+                    </button>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <p>版本 1.0.0</p>
+                <p>基于 RAG + 智能体技术</p>
+            </div>
+        </aside>
+        
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 智能对话面板 -->
+            <section id="panel-chat" class="panel active">
+                <div class="panel-header">
+                    <h2>🤖 智能对话</h2>
+                    <p>基于知识库的医疗问答助手，支持多源数据检索</p>
+                </div>
+                
+                <div class="chat-container">
+                    <div class="chat-messages" id="chat-messages">
+                        <div class="message system">
+                            <div class="message-content">
+                                <p>👋 您好！我是医疗知识助手，专注于高血压和糖尿病的诊疗决策支持。</p>
+                                <p>您可以：</p>
+                                <ul>
+                                    <li>查询患者信息（如：查询患者ID=1002_0_20210504）</li>
+                                    <li>询问医学知识（如：什么是高血压？）</li>
+                                    <li>获取治疗建议（如：高血压急症如何处理？）</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="chat-input-area">
+                        <div class="patient-context">
+                            <label>
+                                <input type="checkbox" id="use-patient-context">
+                                关联患者ID:
+                            </label>
+                            <input type="text" id="context-patient-id" placeholder="输入患者ID" disabled>
+                        </div>
+                        <div class="input-row">
+                            <textarea id="chat-input" placeholder="输入您的问题..." rows="2"></textarea>
+                            <button id="send-btn" class="btn-primary">发送</button>
+                        </div>
+                        <div class="input-actions">
+                            <button id="clear-history-btn" class="btn-secondary">清空对话</button>
+                            <span class="hint">按 Enter 发送，Shift+Enter 换行</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- PDF结构面板 -->
+            <section id="panel-pdf-structure" class="panel">
+                <div class="panel-header">
+                    <h2>📄 PDF 目录结构提取</h2>
+                    <p>提取指南文档的目录结构及关键表格</p>
+                </div>
+                <div class="panel-content">
+                    <button id="load-pdf-structure" class="btn-primary">加载PDF结构</button>
+                    <div id="pdf-structure-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 术语映射面板 -->
+            <section id="panel-term-mapping" class="panel">
+                <div class="panel-header">
+                    <h2>📖 术语标准化映射</h2>
+                    <p>医学术语同义词映射与标准化</p>
+                </div>
+                <div class="panel-content">
+                    <div class="term-search">
+                        <input type="text" id="term-input" placeholder="输入术语（如：心梗）">
+                        <button id="normalize-term-btn" class="btn-primary">标准化</button>
+                        <button id="load-mapping-table-btn" class="btn-secondary">显示映射表</button>
+                    </div>
+                    <div id="term-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 胰岛素分析面板 -->
+            <section id="panel-insulin-analysis" class="panel">
+                <div class="panel-header">
+                    <h2>📊 胰岛素使用率分析</h2>
+                    <p>基于Excel数据的糖尿病患者胰岛素使用情况分析</p>
+                </div>
+                <div class="panel-content">
+                    <button id="load-insulin-analysis" class="btn-primary">加载分析数据</button>
+                    <div id="insulin-analysis-result" class="result-area"></div>
+                    <div id="insulin-chart" class="chart-container"></div>
+                </div>
+            </section>
+            
+            <!-- 指南查询面板 -->
+            <section id="panel-guidelines" class="panel">
+                <div class="panel-header">
+                    <h2>📋 指南推荐查询</h2>
+                    <p>查询指南推荐规则，支持时效性过滤</p>
+                </div>
+                <div class="panel-content">
+                    <div class="filter-row">
+                        <select id="disease-type-filter">
+                            <option value="">全部疾病类型</option>
+                            <option value="高血压">高血压</option>
+                            <option value="糖尿病">糖尿病</option>
+                            <option value="冠心病">冠心病</option>
+                            <option value="脑卒中">脑卒中</option>
+                        </select>
+                        <input type="date" id="update-date-filter" placeholder="更新日期之后">
+                        <button id="query-guidelines-btn" class="btn-primary">查询</button>
+                    </div>
+                    <div id="guidelines-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 患者画像面板 -->
+            <section id="panel-patient-query" class="panel">
+                <div class="panel-header">
+                    <h2>👤 患者画像构建</h2>
+                    <p>输入患者ID，自动查询并生成完整患者画像</p>
+                </div>
+                <div class="panel-content">
+                    <div class="input-row">
+                        <input type="text" id="patient-id-input" placeholder="输入患者ID（如：1002_0_20210504）">
+                        <button id="query-patient-btn" class="btn-primary">查询画像</button>
+                    </div>
+                    <div id="patient-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 风险评估面板 -->
+            <section id="panel-risk-assessment" class="panel">
+                <div class="panel-header">
+                    <h2>⚠️ 风险分层评估</h2>
+                    <p>基于患者数据进行高血压/糖尿病风险分层</p>
+                </div>
+                <div class="panel-content">
+                    <div class="input-row">
+                        <input type="text" id="risk-patient-id-input" placeholder="输入患者ID">
+                        <button id="assess-risk-btn" class="btn-primary">风险评估</button>
+                    </div>
+                    <div id="risk-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 诊断推理面板 -->
+            <section id="panel-diagnosis" class="panel">
+                <div class="panel-header">
+                    <h2>🔍 诊断推理</h2>
+                    <p>输入症状和检查数据，生成鉴别诊断列表</p>
+                </div>
+                <div class="panel-content">
+                    <textarea id="diagnosis-input" placeholder="请描述患者症状和检查数据...&#10;例如：58岁男性，血压168/98mmHg，头痛3天，HbA1c 8.2%"></textarea>
+                    <button id="diagnosis-btn" class="btn-primary">生成诊断</button>
+                    <div id="diagnosis-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 治疗方案面板 -->
+            <section id="panel-treatment" class="panel">
+                <div class="panel-header">
+                    <h2>💊 治疗方案生成</h2>
+                    <p>基于患者情况和指南推荐，生成个性化治疗方案</p>
+                </div>
+                <div class="panel-content">
+                    <div class="form-group">
+                        <label>患者ID（可选）</label>
+                        <input type="text" id="treatment-patient-id" placeholder="关联患者ID获取更准确的方案">
+                    </div>
+                    <div class="form-group">
+                        <label>症状/病情描述</label>
+                        <textarea id="treatment-input" placeholder="描述患者病情或输入特定问题..."></textarea>
+                    </div>
+                    <button id="treatment-btn" class="btn-primary">生成方案</button>
+                    <div id="treatment-result" class="result-area"></div>
+                </div>
+            </section>
+            
+            <!-- 索引管理面板 -->
+            <section id="panel-index-management" class="panel">
+                <div class="panel-header">
+                    <h2>🔄 索引管理</h2>
+                    <p>管理RAG知识库索引，查看更新状态</p>
+                </div>
+                <div class="panel-content">
+                    <div class="status-card">
+                        <h3>索引状态</h3>
+                        <div id="index-status">点击下方按钮查看状态</div>
+                    </div>
+                    <div class="button-group">
+                        <button id="check-index-status-btn" class="btn-secondary">检查状态</button>
+                        <button id="rebuild-index-btn" class="btn-primary">重建索引</button>
+                    </div>
+                    <div id="index-result" class="result-area"></div>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+

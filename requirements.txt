@@ -1,0 +1,31 @@
+# 医疗知识助手智能体依赖包
+# ===================== 核心依赖 =====================
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# ===================== LLM/AI 相关 =====================
+openai>=1.0.0
+dashscope>=1.14.0
+llama-index>=0.10.0
+llama-index-embeddings-dashscope>=0.2.0
+llama-index-llms-dashscope>=0.2.0
+llama-index-llms-openai-like>=0.1.0
+
+# ===================== 数据处理 =====================
+pandas>=2.0.0
+openpyxl>=3.1.0
+PyPDF2>=3.0.0
+pdfplumber>=0.10.0
+
+# ===================== 向量存储 =====================
+faiss-cpu>=1.7.0
+sentence-transformers>=2.2.0
+
+# ===================== 数据库 =====================
+pymysql>=1.1.0
+mysql-connector-python>=8.0.0
+
+# ===================== 工具库 =====================
+python-dotenv>=1.0.0
+apscheduler>=3.10.0
+
