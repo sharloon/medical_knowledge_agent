@@ -31,6 +31,10 @@ MYSQL_CONFIG = {
     "charset": "utf8mb4"
 }
 
+# ===================== 数据库异常模拟配置 =====================
+# 设置为 True 可模拟数据库连接失败，用于测试系统的优雅降级功能
+SIMULATE_DB_FAILURE = os.getenv("SIMULATE_DB_FAILURE", "false").lower() == "true"
+
 # ===================== RAG 配置 =====================
 RAG_CONFIG = {
     "chunk_size": 500,

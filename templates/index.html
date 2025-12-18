@@ -256,6 +256,32 @@
                         <button id="rebuild-index-btn" class="btn-primary">重建索引</button>
                     </div>
                     <div id="index-result" class="result-area"></div>
+                    
+                    <!-- 数据库故障模拟控制 -->
+                    <div class="status-card" style="margin-top: 20px; border: 2px solid #ff6b6b;">
+                        <h3>🔧 数据库异常模拟</h3>
+                        <p style="color: #666; font-size: 0.9em; margin-bottom: 10px;">
+                            开启此开关可模拟数据库连接失败，测试系统的优雅降级功能
+                        </p>
+                        <div class="db-simulation-control">
+                            <div class="toggle-switch">
+                                <label class="switch">
+                                    <input type="checkbox" id="db-failure-toggle">
+                                    <span class="slider round"></span>
+                                </label>
+                                <span id="db-simulation-status" class="status-text">已关闭</span>
+                            </div>
+                            <div id="db-status-indicator" class="db-status-indicator">
+                                <span class="status-dot connected"></span>
+                                <span class="status-message">数据库状态: 正常</span>
+                            </div>
+                        </div>
+                        <div class="button-group" style="margin-top: 10px;">
+                            <button id="check-db-status-btn" class="btn-secondary">检查数据库状态</button>
+                            <button id="test-patient-query-btn" class="btn-secondary">测试患者查询</button>
+                        </div>
+                        <div id="db-test-result" class="result-area" style="margin-top: 10px;"></div>
+                    </div>
                 </div>
             </section>
         </main>

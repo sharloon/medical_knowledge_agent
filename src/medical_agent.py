@@ -8,7 +8,13 @@ from typing import Dict, List, Optional, Generator
 from datetime import datetime
 
 from src.llm_client import get_llm_client, MEDICAL_SYSTEM_PROMPT
-from src.db_client import get_db_client
+from src.db_client import (
+    get_db_client, 
+    check_db_connection, 
+    DatabaseConnectionError,
+    set_db_failure_simulation,
+    is_db_failure_simulation_enabled
+)
 from src.rag_service import get_rag_service
 from src.risk_engine import get_risk_engine
 from src.safety_guard import get_safety_guard, SafetyWarning
@@ -47,10 +53,23 @@ class MedicalAgent:
         # 术语标准化
         normalized_message = self.term_mapper.expand_query(message)
         
-        # 获取患者上下文
+        # 获取患者上下文 - 带数据库异常处理
         patient_context = None
+        db_available = True
         if patient_id:
-            patient_context = self.db.get_full_patient_profile(patient_id)
+            try:
+                db_status = check_db_connection()
+                if db_status["connected"]:
+                    patient_context = self.db.get_full_patient_profile(patient_id)
+                    if patient_context.get("db_unavailable"):
+                        db_available = False
+                        patient_context = None
+                else:
+                    db_available = False
+                    logger.warning(f"[智能体] 数据库不可用，跳过患者上下文获取")
+            except DatabaseConnectionError as e:
+                db_available = False
+                logger.warning(f"[智能体] 获取患者上下文失败: {str(e)}")
         
         # 意图识别与路由
         intent = self._classify_intent(message)
@@ -138,8 +157,28 @@ class MedicalAgent:
                 "success": True
             }
         
+        # 检查数据库连接状态
+        db_status = check_db_connection()
+        if not db_status["connected"]:
+            return self._handle_db_unavailable(patient_id, db_status)
+        
         # 获取完整患者画像
-        profile = self.db.get_full_patient_profile(patient_id)
+        try:
+            profile = self.db.get_full_patient_profile(patient_id)
+        except DatabaseConnectionError as e:
+            return self._handle_db_unavailable(patient_id, {
+                "connected": False,
+                "message": str(e),
+                "simulated_failure": True
+            })
+        
+        # 检查是否数据库不可用
+        if profile.get("db_unavailable"):
+            return self._handle_db_unavailable(patient_id, {
+                "connected": False,
+                "message": profile.get("error", "数据库连接失败"),
+                "simulated_failure": True
+            })
         
         if not profile.get("basic_info"):
             return {
@@ -164,6 +203,65 @@ class MedicalAgent:
             "warnings": [self._warning_to_dict(w) for w in warnings],
             "sources": [{"type": "mysql", "tables": profile["source"]["tables"]}],
             "success": True
+        }
+    
+    def _handle_db_unavailable(self, patient_id: str, db_status: Dict) -> Dict:
+        """
+        处理数据库不可用的情况 - 优雅降级
+        
+        Args:
+            patient_id: 患者ID
+            db_status: 数据库状态信息
+            
+        Returns:
+            包含友好提示的响应字典
+        """
+        logger.warning(f"[优雅降级] 数据库不可用，无法查询患者 {patient_id} 的信息")
+        
+        # 构建友好的降级提示
+        degraded_response = f"""## ⚠️ 数据库服务暂时不可用
+
+**错误信息**: {db_status.get('message', '未知错误')}
+
+### 📋 系统状态
+- **患者ID**: {patient_id}
+- **数据库状态**: 🔴 不可用
+- **降级模式**: 已启用
+
+### 💡 当前可用功能
+
+虽然无法访问患者数据库，但您仍可以使用以下功能：
+
+1. **📚 医学知识查询**
+   - 查询高血压/糖尿病诊疗指南
+   - 获取药物使用建议
+   - 了解疾病症状和诊断标准
+
+2. **📊 Excel数据分析**
+   - 查询糖尿病患者统计数据
+   - 分析胰岛素使用率
+
+3. **🤖 智能问答**
+   - 进行 SOAP 格式问诊
+   - 获取一般医学建议
+
+### 🔧 建议操作
+
+- 请稍后重试查询患者信息
+- 如问题持续，请联系系统管理员
+- 可以先使用知识库查询功能
+
+---
+*提示：输入 "高血压治疗指南" 或 "糖尿病用药建议" 等问题，我可以为您提供相关医学知识。*
+"""
+        
+        return {
+            "answer": degraded_response,
+            "sources": [],
+            "success": True,
+            "db_unavailable": True,
+            "degraded_mode": True,
+            "error": db_status.get('message')
         }
     
     def _generate_patient_report(self, profile: Dict, assessment: Dict, 
@@ -502,6 +600,44 @@ class MedicalAgent:
         """清空对话历史"""
         self.conversation_history = []
         logger.info("[智能体] 对话历史已清空")
+    
+    def check_database_status(self) -> Dict:
+        """
+        检查数据库连接状态
+        
+        Returns:
+            {"connected": bool, "message": str, "simulated_failure": bool}
+        """
+        return check_db_connection()
+    
+    def set_database_failure_simulation(self, enabled: bool) -> Dict:
+        """
+        设置数据库故障模拟开关
+        
+        Args:
+            enabled: True 启用模拟故障，False 禁用模拟故障
+            
+        Returns:
+            {"success": bool, "message": str, "simulation_enabled": bool}
+        """
+        try:
+            set_db_failure_simulation(enabled)
+            status = "启用" if enabled else "禁用"
+            return {
+                "success": True,
+                "message": f"数据库故障模拟已{status}",
+                "simulation_enabled": enabled
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"设置失败: {str(e)}",
+                "simulation_enabled": is_db_failure_simulation_enabled()
+            }
+    
+    def is_database_simulation_enabled(self) -> bool:
+        """检查数据库故障模拟是否启用"""
+        return is_db_failure_simulation_enabled()
 
 
 # 全局医疗智能体实例

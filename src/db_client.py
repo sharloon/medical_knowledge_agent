@@ -10,9 +10,14 @@ from contextlib import contextmanager
 import pymysql
 from pymysql.cursors import DictCursor
 
-from src.config import MYSQL_CONFIG
+from src.config import MYSQL_CONFIG, SIMULATE_DB_FAILURE
 
 logger = logging.getLogger(__name__)
+
+
+class DatabaseConnectionError(Exception):
+    """数据库连接异常"""
+    pass
 
 
 class DBClient:
@@ -24,6 +29,12 @@ class DBClient:
     
     def _get_connection(self):
         """获取数据库连接"""
+        # 检查是否启用了数据库异常模拟
+        if SIMULATE_DB_FAILURE:
+            error_msg = "【模拟异常】数据库连接失败：无法连接到数据库服务器，请检查网络连接或联系管理员"
+            logger.error(f"[数据库] {error_msg}")
+            raise DatabaseConnectionError(error_msg)
+        
         if self._connection is None or not self._connection.open:
             try:
                 self._connection = pymysql.connect(
@@ -39,7 +50,7 @@ class DBClient:
                 logger.info(f"[数据库] 连接成功: {self.config['host']}")
             except Exception as e:
                 logger.error(f"[数据库] 连接失败: {str(e)}")
-                raise
+                raise DatabaseConnectionError(f"数据库连接失败: {str(e)}")
         return self._connection
     
     @contextmanager
@@ -65,7 +76,7 @@ class DBClient:
             params: 参数
             
         Returns:
-            {"success": bool, "data": list, "error": str, "execution_time_ms": int}
+            {"success": bool, "data": list, "error": str, "execution_time_ms": int, "db_unavailable": bool}
         """
         start_time = time.time()
         try:
@@ -80,8 +91,20 @@ class DBClient:
                     "success": True,
                     "data": data,
                     "error": None,
-                    "execution_time_ms": execution_time
+                    "execution_time_ms": execution_time,
+                    "db_unavailable": False
                 }
+        except DatabaseConnectionError as e:
+            # 数据库连接异常 - 标记为数据库不可用
+            error_msg = str(e)
+            logger.error(f"[数据库不可用] {error_msg}")
+            return {
+                "success": False,
+                "data": [],
+                "error": error_msg,
+                "execution_time_ms": int((time.time() - start_time) * 1000),
+                "db_unavailable": True
+            }
         except Exception as e:
             error_msg = f"SQL执行失败: {str(e)}"
             logger.error(error_msg)
@@ -89,7 +112,8 @@ class DBClient:
                 "success": False,
                 "data": [],
                 "error": error_msg,
-                "execution_time_ms": int((time.time() - start_time) * 1000)
+                "execution_time_ms": int((time.time() - start_time) * 1000),
+                "db_unavailable": False
             }
     
     def get_patient_info(self, patient_id: str) -> Optional[Dict]:
@@ -197,7 +221,22 @@ class DBClient:
         
         Returns:
             包含患者所有信息的完整画像字典
+            如果数据库不可用，返回包含 db_unavailable 标记的字典
         """
+        # 先检查数据库连接是否可用
+        try:
+            if SIMULATE_DB_FAILURE:
+                raise DatabaseConnectionError("数据库连接失败（模拟异常）")
+        except DatabaseConnectionError as e:
+            logger.error(f"[数据库不可用] 无法获取患者画像: {str(e)}")
+            return {
+                "patient_id": patient_id,
+                "db_unavailable": True,
+                "error": str(e),
+                "basic_info": None,
+                "source": {"type": "mysql", "status": "unavailable"}
+            }
+        
         profile = {
             "patient_id": patient_id,
             "basic_info": self.get_patient_info(patient_id),
@@ -207,6 +246,7 @@ class DBClient:
             "diagnoses": self.get_patient_diagnoses(patient_id),
             "hypertension_assessment": self.get_hypertension_assessment(patient_id),
             "diabetes_assessment": self.get_diabetes_assessment(patient_id),
+            "db_unavailable": False,
             "source": {
                 "type": "mysql",
                 "tables": ["patient_info", "medical_records", "lab_results", 
@@ -278,4 +318,77 @@ def get_db_client() -> DBClient:
     if _db_client is None:
         _db_client = DBClient()
     return _db_client
+
+
+def set_db_failure_simulation(enabled: bool):
+    """
+    设置数据库故障模拟开关
+    
+    Args:
+        enabled: True 启用模拟故障，False 禁用模拟故障
+    """
+    import src.config as config
+    config.SIMULATE_DB_FAILURE = enabled
+    status = "启用" if enabled else "禁用"
+    logger.info(f"[数据库模拟] 数据库故障模拟已{status}")
+    
+    # 如果禁用模拟，重置数据库连接
+    global _db_client
+    if not enabled and _db_client is not None:
+        try:
+            _db_client.close()
+        except:
+            pass
+        _db_client = None
+
+
+def is_db_failure_simulation_enabled() -> bool:
+    """检查数据库故障模拟是否启用"""
+    import src.config as config
+    return config.SIMULATE_DB_FAILURE
+
+
+def check_db_connection() -> Dict:
+    """
+    检查数据库连接状态
+    
+    Returns:
+        {"connected": bool, "message": str, "simulated_failure": bool}
+    """
+    import src.config as config
+    
+    if config.SIMULATE_DB_FAILURE:
+        return {
+            "connected": False,
+            "message": "数据库故障模拟已启用，连接被阻止",
+            "simulated_failure": True
+        }
+    
+    try:
+        client = get_db_client()
+        conn = client._get_connection()
+        if conn and conn.open:
+            return {
+                "connected": True,
+                "message": f"数据库连接正常: {client.config['host']}",
+                "simulated_failure": False
+            }
+        else:
+            return {
+                "connected": False,
+                "message": "数据库连接已关闭",
+                "simulated_failure": False
+            }
+    except DatabaseConnectionError as e:
+        return {
+            "connected": False,
+            "message": str(e),
+            "simulated_failure": config.SIMULATE_DB_FAILURE
+        }
+    except Exception as e:
+        return {
+            "connected": False,
+            "message": f"数据库连接检查失败: {str(e)}",
+            "simulated_failure": False
+        }
 

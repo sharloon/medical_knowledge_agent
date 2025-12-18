@@ -642,9 +642,140 @@ document.getElementById('rebuild-index-btn').addEventListener('click', async () 
     }
 });
 
+// ==================== 数据库故障模拟 ====================
+
+const dbFailureToggle = document.getElementById('db-failure-toggle');
+const dbSimulationStatus = document.getElementById('db-simulation-status');
+const dbStatusIndicator = document.getElementById('db-status-indicator');
+const checkDbStatusBtn = document.getElementById('check-db-status-btn');
+const testPatientQueryBtn = document.getElementById('test-patient-query-btn');
+const dbTestResult = document.getElementById('db-test-result');
+
+// 更新数据库状态显示
+function updateDbStatusDisplay(status) {
+    const statusDot = dbStatusIndicator.querySelector('.status-dot');
+    const statusMessage = dbStatusIndicator.querySelector('.status-message');
+    
+    if (status.connected) {
+        statusDot.className = 'status-dot connected';
+        statusMessage.textContent = `数据库状态: ✅ 正常连接`;
+    } else {
+        statusDot.className = 'status-dot disconnected';
+        statusMessage.textContent = `数据库状态: ❌ ${status.simulated_failure ? '模拟故障中' : '连接失败'}`;
+    }
+    
+    // 更新开关状态
+    if (status.simulation_enabled !== undefined) {
+        dbFailureToggle.checked = status.simulation_enabled;
+        dbSimulationStatus.textContent = status.simulation_enabled ? '已启用' : '已关闭';
+        dbSimulationStatus.className = 'status-text' + (status.simulation_enabled ? ' danger' : '');
+    }
+}
+
+// 切换数据库故障模拟
+dbFailureToggle.addEventListener('change', async () => {
+    const enabled = dbFailureToggle.checked;
+    
+    try {
+        const result = await apiCall('/api/db/simulate-failure', {
+            method: 'POST',
+            body: JSON.stringify({ enabled })
+        });
+        
+        if (result.success) {
+            dbSimulationStatus.textContent = enabled ? '已启用' : '已关闭';
+            dbSimulationStatus.className = 'status-text' + (enabled ? ' danger' : '');
+            
+            // 更新状态显示
+            if (result.data && result.data.db_status) {
+                updateDbStatusDisplay({
+                    ...result.data.db_status,
+                    simulation_enabled: result.data.simulation_enabled
+                });
+            }
+            
+            // 显示提示
+            const status = enabled ? '启用' : '禁用';
+            dbTestResult.innerHTML = `<div class="warning-box ${enabled ? 'critical' : ''}">
+                <h4>${enabled ? '⚠️' : '✅'} 数据库故障模拟已${status}</h4>
+                <p>${enabled ? '现在查询患者信息将会触发优雅降级处理。' : '数据库连接已恢复正常。'}</p>
+            </div>`;
+        }
+    } catch (error) {
+        console.error('设置数据库模拟失败:', error);
+        // 回滚开关状态
+        dbFailureToggle.checked = !enabled;
+        showError('db-test-result', error.message);
+    }
+});
+
+// 检查数据库状态
+checkDbStatusBtn.addEventListener('click', async () => {
+    showLoading('db-test-result');
+    
+    try {
+        const result = await apiCall('/api/db/status');
+        
+        if (result.success) {
+            updateDbStatusDisplay(result.data);
+            
+            let content = `## 🔍 数据库状态检查\n\n`;
+            content += `**连接状态:** ${result.data.connected ? '✅ 正常' : '❌ 断开'}\n`;
+            content += `**详细信息:** ${result.data.message}\n`;
+            content += `**故障模拟:** ${result.data.simulation_enabled ? '已启用' : '未启用'}\n`;
+            
+            if (result.data.simulated_failure) {
+                content += `\n⚠️ 当前处于模拟故障状态`;
+            }
+            
+            showResult('db-test-result', content);
+        }
+    } catch (error) {
+        showError('db-test-result', error.message);
+    }
+});
+
+// 测试患者查询（用于演示优雅降级）
+testPatientQueryBtn.addEventListener('click', async () => {
+    showLoading('db-test-result');
+    
+    try {
+        const result = await apiCall('/api/chat', {
+            method: 'POST',
+            body: JSON.stringify({ 
+                message: '查询患者ID=TEST_001的信息',
+                patient_id: 'TEST_001'
+            })
+        });
+        
+        if (result.success && result.data) {
+            let content = result.data.answer || '查询完成';
+            
+            // 如果是降级模式，添加特殊标记
+            if (result.data.degraded_mode || result.data.db_unavailable) {
+                content = `## 🔔 优雅降级演示\n\n${content}`;
+            }
+            
+            showResult('db-test-result', content);
+        }
+    } catch (error) {
+        showError('db-test-result', error.message);
+    }
+});
+
 // ==================== 初始化 ====================
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('医疗知识助手前端已加载');
+    
+    // 初始化时检查数据库状态
+    try {
+        const result = await apiCall('/api/db/status');
+        if (result.success) {
+            updateDbStatusDisplay(result.data);
+        }
+    } catch (error) {
+        console.log('初始化数据库状态检查失败（服务可能未启动）:', error);
+    }
 });
 

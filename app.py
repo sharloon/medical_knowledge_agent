@@ -36,6 +36,14 @@ def get_db_client():
     from src.db_client import get_db_client as _get_db
     return _get_db()
 
+def get_db_simulation_functions():
+    from src.db_client import (
+        set_db_failure_simulation,
+        is_db_failure_simulation_enabled,
+        check_db_connection
+    )
+    return set_db_failure_simulation, is_db_failure_simulation_enabled, check_db_connection
+
 
 # ==================== 页面路由 ====================
 
@@ -347,6 +355,89 @@ def clear_history():
         }), 500
 
 
+# ==================== 数据库模拟故障控制 ====================
+
+@app.route('/api/db/status', methods=['GET'])
+def get_db_status():
+    """获取数据库连接状态"""
+    try:
+        _, is_simulation_enabled, check_connection = get_db_simulation_functions()
+        
+        status = check_connection()
+        status["simulation_enabled"] = is_simulation_enabled()
+        
+        return jsonify({
+            "success": True,
+            "data": status
+        })
+        
+    except Exception as e:
+        logger.error(f"[API] 数据库状态查询错误: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/db/simulate-failure', methods=['POST'])
+def toggle_db_failure_simulation():
+    """切换数据库故障模拟开关"""
+    try:
+        data = request.get_json()
+        enabled = data.get('enabled', False)
+        
+        set_simulation, is_simulation_enabled, check_connection = get_db_simulation_functions()
+        
+        set_simulation(enabled)
+        status = "启用" if enabled else "禁用"
+        logger.info(f"[API] 数据库故障模拟已{status}")
+        
+        # 返回当前状态
+        db_status = check_connection()
+        
+        return jsonify({
+            "success": True,
+            "message": f"数据库故障模拟已{status}",
+            "data": {
+                "simulation_enabled": is_simulation_enabled(),
+                "db_status": db_status
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"[API] 数据库故障模拟设置错误: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
+@app.route('/api/db/test-connection', methods=['GET'])
+def test_db_connection():
+    """测试数据库连接"""
+    try:
+        _, is_simulation_enabled, check_connection = get_db_simulation_functions()
+        
+        status = check_connection()
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "connected": status["connected"],
+                "message": status["message"],
+                "simulated_failure": status.get("simulated_failure", False),
+                "simulation_enabled": is_simulation_enabled()
+            }
+        })
+        
+    except Exception as e:
+        logger.error(f"[API] 数据库连接测试错误: {str(e)}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+
 # ==================== 错误处理 ====================
 
 @app.errorhandler(404)
@@ -372,5 +463,5 @@ if __name__ == '__main__':
     
     # 启动服务
     logger.info("医疗知识助手智能体启动中...")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
 
